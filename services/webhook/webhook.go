@@ -129,6 +129,31 @@ func checkBranchFilter(branchFilter string, ref git.RefName) bool {
 	return g.Match(ref.String())
 }
 
+// PrepareTestWebhook creates a hook task for testing and enqueues it.
+func PrepareTestWebhook(ctx context.Context, w *webhook_model.Webhook, event webhook_module.HookEventType, p api.Payloader) error {
+	// Skip sending if webhooks are disabled.
+	if setting.DisableWebhooks {
+		return nil
+	}
+
+	payload, err := p.JSONPayload()
+	if err != nil {
+		return fmt.Errorf("JSONPayload for %s: %w", event, err)
+	}
+
+	task, err := webhook_model.CreateHookTask(ctx, &webhook_model.HookTask{
+		HookID:         w.ID,
+		PayloadContent: string(payload),
+		EventType:      event,
+		PayloadVersion: 2,
+	})
+	if err != nil {
+		return fmt.Errorf("CreateHookTask for %s: %w", event, err)
+	}
+
+	return enqueueHookTask(task.ID)
+}
+
 // PrepareWebhook creates a hook task and enqueues it for processing.
 // The payload is saved as-is. The adjustments depending on the webhook type happen
 // right before delivery, in the [Deliver] method.
