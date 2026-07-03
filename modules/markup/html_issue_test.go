@@ -12,6 +12,7 @@ import (
 	"gitea.dev/modules/htmlutil"
 	"gitea.dev/modules/markup"
 	"gitea.dev/modules/markup/markdown"
+	"gitea.dev/modules/setting"
 	testModule "gitea.dev/modules/test"
 
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,7 @@ import (
 )
 
 func TestRender_IssueList(t *testing.T) {
+	defer testModule.MockVariableValue(&setting.AppURL, markup.TestAppURL)()
 	defer testModule.MockVariableValue(&markup.RenderBehaviorForTesting.DisableAdditionalAttributes, true)()
 	markup.Init(&markup.RenderHelperFuncs{
 		RenderRepoIssueIconTitle: func(ctx context.Context, opts markup.RenderIssueIconTitleOptions) (template.HTML, error) {
@@ -41,6 +43,13 @@ func TestRender_IssueList(t *testing.T) {
 		test(
 			"#12345",
 			`<p><a href="/test-user/test-repo/issues/12345" class="ref-issue" rel="nofollow">#12345</a></p>`,
+		)
+	})
+
+	t.Run("MarkdownIssueLinkRef", func(t *testing.T) {
+		test(
+			"[PR #12345](/test-user/test-repo/pulls/12345)",
+			`<p><a href="http://localhost:3000/test-user/test-repo/pulls/12345" class="ref-issue" rel="nofollow">PR #12345</a></p>`,
 		)
 	})
 

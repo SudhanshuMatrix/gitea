@@ -4,12 +4,45 @@
 package markup
 
 import (
+	"regexp"
 	"strings"
 
+	"gitea.dev/modules/httplib"
 	"gitea.dev/modules/markup/common"
 
 	"golang.org/x/net/html"
 )
+
+var issuePRSubPathPattern = regexp.MustCompile(`^/(issues|pulls)/((?:\w{1,10}-)?[1-9][0-9]*)(?:[#?].*)?$`)
+
+func addClass(ctx *RenderContext, node *html.Node, class string) {
+	for i, attr := range node.Attr {
+		if attr.Key == "class" {
+			classes := strings.Fields(attr.Val)
+			for _, c := range classes {
+				if c == class {
+					return
+				}
+			}
+			node.Attr[i].Val = attr.Val + " " + class
+			return
+		}
+		if attr.Key == "data-attr-class" {
+			val, ok := ctx.RenderInternal.RecoverProtectedValue(attr.Val)
+			if ok {
+				classes := strings.Fields(val)
+				for _, c := range classes {
+					if c == class {
+						return
+					}
+				}
+				node.Attr[i].Val = ctx.RenderInternal.SafeValue(val + " " + class)
+				return
+			}
+		}
+	}
+	node.Attr = append(node.Attr, ctx.RenderInternal.NodeSafeAttr("class", class))
+}
 
 func isAnchorIDUserContent(s string) bool {
 	// blackfridayExtRegex is for blackfriday extensions create IDs like fn:user-content-footnote
@@ -122,6 +155,12 @@ func processNodeA(ctx *RenderContext, node *html.Node) {
 				}
 			} else {
 				node.Attr[idx].Val = ctx.RenderHelper.ResolveLink(attr.Val, LinkTypeDefault)
+			}
+
+			if parsed := httplib.ParseGiteaSiteURL(ctx, node.Attr[idx].Val); parsed != nil {
+				if issuePRSubPathPattern.MatchString(parsed.RepoSubPath) {
+					addClass(ctx, node, "ref-issue")
+				}
 			}
 		}
 	}
