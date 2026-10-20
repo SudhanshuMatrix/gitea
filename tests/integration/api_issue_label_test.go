@@ -82,6 +82,7 @@ func TestAPIModifyLabels(t *testing.T) {
 		Color: &newColorWrong,
 	}).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusUnprocessableEntity)
+	testAPIEditLabelArchived(t, singleURLStr, token)
 
 	// DeleteLabel
 	req = NewRequest(t, "DELETE", singleURLStr).
@@ -286,9 +287,21 @@ func TestAPIModifyOrgLabels(t *testing.T) {
 		Color: &newColorWrong,
 	}).AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusUnprocessableEntity)
+	testAPIEditLabelArchived(t, singleURLStr, token)
 
 	// DeleteLabel
 	req = NewRequest(t, "DELETE", singleURLStr).
 		AddTokenAuth(token)
 	MakeRequest(t, req, http.StatusNoContent)
+}
+
+func testAPIEditLabelArchived(t *testing.T, labelURL, token string) {
+	editLabel := func(opts *api.EditLabelOption) *api.Label {
+		resp := MakeRequest(t, NewRequestWithJSON(t, "PATCH", labelURL, opts).AddTokenAuth(token), http.StatusOK)
+		return DecodeJSON(t, resp, &api.Label{})
+	}
+	assert.True(t, editLabel(&api.EditLabelOption{IsArchived: new(true)}).IsArchived)
+	// an edit without is_archived must not unarchive the label
+	assert.True(t, editLabel(&api.EditLabelOption{Name: new("ArchivedLabel")}).IsArchived)
+	assert.False(t, editLabel(&api.EditLabelOption{IsArchived: new(false)}).IsArchived)
 }
