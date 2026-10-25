@@ -464,3 +464,9 @@ func TestMigrate_CreateIssuesIsPullFalse(t *testing.T) {
 func TestMigrate_CreateIssuesIsPullTrue(t *testing.T) {
 	assertCreateIssues(t, true)
 }
+
+func TestIssueGetTasks(t *testing.T) {
+	issue := &issues_model.Issue{Content: "- [ ] a\n* [x] b\n+ [X] c\n1. [ ] d\n2) [x] e\n\n10. [ ] f\n- [] not a task\n-[ ] not a task"}
+	assert.Equal(t, 6, issue.GetTasks())
+	assert.Equal(t, 3, issue.GetTasksDone())
+}

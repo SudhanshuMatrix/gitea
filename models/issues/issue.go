@@ -111,8 +111,8 @@ type Issue struct {
 }
 
 var (
-	issueTasksPat     = regexp.MustCompile(`(^\s*[-*]\s\[[\sxX]\]\s.)|(\n\s*[-*]\s\[[\sxX]\]\s.)`)
-	issueTasksDonePat = regexp.MustCompile(`(^\s*[-*]\s\[[xX]\]\s.)|(\n\s*[-*]\s\[[xX]\]\s.)`)
+	issueTasksPat     = regexp.MustCompile(`(^\s*(?:[-*+]|\d{1,9}[.)])\s\[[\sxX]\]\s.)|(\n\s*(?:[-*+]|\d{1,9}[.)])\s\[[\sxX]\]\s.)`)
+	issueTasksDonePat = regexp.MustCompile(`(^\s*(?:[-*+]|\d{1,9}[.)])\s\[[xX]\]\s.)|(\n\s*(?:[-*+]|\d{1,9}[.)])\s\[[xX]\]\s.)`)
 )
 
 // IssueIndex represents the issue index table
