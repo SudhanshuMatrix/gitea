@@ -7,11 +7,15 @@ import (
 	"net/http"
 	"testing"
 
+	"gitea.dev/models/db"
 	"gitea.dev/models/unittest"
+	"gitea.dev/models/webhook"
 	"gitea.dev/modules/structs"
+	webhook_module "gitea.dev/modules/webhook"
 	"gitea.dev/services/contexttest"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTestHookValidation(t *testing.T) {
@@ -42,4 +46,35 @@ func TestTestHookValidation(t *testing.T) {
 			assert.Equal(t, tc.status, ctx.Resp.WrittenStatus())
 		})
 	}
+}
+
+func TestEditHookKeepsOmittedFields(t *testing.T) {
+	unittest.PrepareTestEnv(t)
+
+	hook := &webhook.Webhook{
+		RepoID:      1,
+		URL:         "https://example.com/webhook",
+		ContentType: webhook.ContentTypeJSON,
+		IsActive:    true,
+		HookEvent: &webhook_module.HookEvent{
+			BranchFilter: "main",
+			ChooseEvents: true,
+			HookEvents:   webhook_module.HookEvents{webhook_module.HookEventIssues: true},
+		},
+	}
+	require.NoError(t, hook.SetHeaderAuthorization("Bearer secret"))
+	require.NoError(t, hook.UpdateEvent())
+	require.NoError(t, db.Insert(t.Context(), hook))
+
+	ctx, _ := contexttest.MockAPIContext(t, "user2/repo1/hooks")
+	assert.True(t, editHook(ctx, &structs.EditHookOption{Active: new(false)}, hook))
+
+	hook = unittest.AssertExistsAndLoadBean(t, &webhook.Webhook{ID: hook.ID})
+	assert.False(t, hook.IsActive)
+	assert.Equal(t, "main", hook.BranchFilter)
+	assert.True(t, hook.HasEvent(webhook_module.HookEventIssues))
+	assert.False(t, hook.HasEvent(webhook_module.HookEventPush))
+	header, err := hook.HeaderAuthorization()
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer secret", header)
 }

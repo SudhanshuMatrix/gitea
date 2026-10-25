@@ -371,17 +371,20 @@ func editHook(ctx *context.APIContext, form *api.EditHookOption, w *webhook.Webh
 		}
 	}
 
-	// Update events
-	w.HookEvents = updateHookEvents(form.Events)
-	w.PushOnly = false
-	w.SendEverything = false
-	w.ChooseEvents = true
-	w.BranchFilter = form.BranchFilter
-
-	err := w.SetHeaderAuthorization(form.AuthorizationHeader)
-	if err != nil {
-		ctx.APIErrorInternal(err)
-		return false
+	if form.Events != nil {
+		w.HookEvents = updateHookEvents(form.Events)
+		w.PushOnly = false
+		w.SendEverything = false
+		w.ChooseEvents = true
+	}
+	if form.BranchFilter != nil {
+		w.BranchFilter = *form.BranchFilter
+	}
+	if form.AuthorizationHeader != nil {
+		if err := w.SetHeaderAuthorization(*form.AuthorizationHeader); err != nil {
+			ctx.APIErrorInternal(err)
+			return false
+		}
 	}
 
 	if err := w.UpdateEvent(); err != nil {

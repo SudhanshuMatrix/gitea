@@ -123,9 +123,9 @@ type EditHookOption struct {
 	// List of events that trigger this webhook
 	Events []string `json:"events"`
 	// Branch filter pattern to determine which branches trigger the webhook
-	BranchFilter string `json:"branch_filter" binding:"GlobPattern"`
+	BranchFilter *string `json:"branch_filter" binding:"GlobPattern"`
 	// Authorization header to include in webhook requests
-	AuthorizationHeader string `json:"authorization_header"`
+	AuthorizationHeader *string `json:"authorization_header"`
 	// Whether the webhook is active and will be triggered
 	Active *bool `json:"active"`
 	// Optional human-readable name
