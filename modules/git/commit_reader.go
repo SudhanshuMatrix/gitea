@@ -4,10 +4,11 @@
 package git
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
+
+	"gitea.dev/modules/util"
 )
 
 const (
@@ -55,46 +56,54 @@ func CommitFromReader(objectID ObjectID, reader io.Reader) (*Commit, error) {
 		Committer: &Signature{},
 	}
 
-	bufReader := bufio.NewReader(reader)
+	buf := &bytes.Buffer{}
+	if limited, ok := reader.(*io.LimitedReader); ok {
+		buf.Grow(int(min(limited.N, 4*1024)) + bytes.MinRead) // the limit is usually the object size, capped in case it is only an upper bound
+	}
+	if _, err := buf.ReadFrom(reader); err != nil {
+		return nil, fmt.Errorf("unable to read commit %q: %w", objectID.String(), err)
+	}
+	data := buf.Bytes() // never modified below, so the parsed fields can reference it
+
 	inHeader := true
-	var payloadSB, messageSB bytes.Buffer
+	var payload []byte // only built when a signature header is found
+	payloadCopied, messageStart := 0, len(data)
 	var headerKey string
 	var headerValue []byte
-	for {
-		line, err := bufReader.ReadBytes('\n')
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("unable to read commit %q: %w", objectID.String(), err)
+	for pos := 0; pos < len(data); {
+		lineEnd := len(data)
+		if idx := bytes.IndexByte(data[pos:], '\n'); idx != -1 {
+			lineEnd = pos + idx + 1
 		}
-		if len(line) == 0 {
+		line := data[pos:lineEnd:lineEnd]
+		if !inHeader {
+			messageStart = pos
 			break
 		}
 
-		if inHeader {
-			inHeader = !(len(line) == 1 && line[0] == '\n') // still in header if line is not just a newline
-			k, v, _ := bytes.Cut(line, []byte{' '})
-			if len(k) != 0 || !inHeader {
-				if headerKey != "" {
-					if err = assignCommitFields(commit, headerKey, headerValue); err != nil {
-						return nil, fmt.Errorf("unable to parse commit %q: %w", objectID.String(), err)
-					}
+		inHeader = !(len(line) == 1 && line[0] == '\n') // still in header if line is not just a newline
+		k, v, _ := bytes.Cut(line, []byte{' '})
+		if len(k) != 0 || !inHeader {
+			if headerKey != "" {
+				if err := assignCommitFields(commit, headerKey, headerValue); err != nil {
+					return nil, fmt.Errorf("unable to parse commit %q: %w", objectID.String(), err)
 				}
-				headerKey = string(k) // it also resets the headerValue to empty string if not inHeader
-				headerValue = v
-			} else {
-				headerValue = append(headerValue, v...)
 			}
-			if headerKey != commitHeaderGpgsig && headerKey != commitHeaderGpgsigSha256 {
-				_, _ = payloadSB.Write(line)
-			}
+			headerKey = util.UnsafeBytesToString(k) // it also resets the headerValue to empty string if not inHeader
+			headerValue = v
 		} else {
-			_, _ = messageSB.Write(line)
-			_, _ = payloadSB.Write(line)
+			headerValue = append(headerValue, v...) // "line" is capped, so it never writes into "data"
 		}
+		if headerKey == commitHeaderGpgsig || headerKey == commitHeaderGpgsigSha256 {
+			payload = append(payload, data[payloadCopied:pos]...)
+			payloadCopied = lineEnd
+		}
+		pos = lineEnd
 	}
 
-	commit.MessageRaw = messageSB.String()
+	commit.MessageRaw = util.UnsafeBytesToString(data[messageStart:])
 	if commit.Signature != nil {
-		commit.Signature.Payload = payloadSB.String()
+		commit.Signature.Payload = string(append(payload, data[payloadCopied:]...))
 	}
 	return commit, nil
 }

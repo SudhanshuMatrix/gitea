@@ -4,6 +4,7 @@
 package git
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -244,4 +245,22 @@ func Test_GetCommitBranchStart(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, startCommitID)
 	assert.Equal(t, "95bb4d39648ee7e325106df01a621c530863a653", startCommitID)
+}
+
+func BenchmarkCommitFromReader(b *testing.B) {
+	commitString := `tree f1a6cb52b2d16773290cefe49ad0684b50a4f930
+parent 37991dec2c8e592043f47155ce4808d4580f9123
+author silverwind <me@silverwind.io> 1563741793 +0200
+committer silverwind <me@silverwind.io> 1563741793 +0200
+
+fix(diff): load both blobs of renamed files for diff rendering
+
+The rename detection only loaded the new blob, so the diff of a renamed
+and modified file was rendered against an empty file.
+`
+	id := MustIDFromString("feaf4ba6bc635fec442f46ddd4512416ec43c2c2")
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _ = CommitFromReader(id, io.LimitReader(strings.NewReader(commitString), int64(len(commitString))))
+	}
 }
